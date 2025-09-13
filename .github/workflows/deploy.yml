@@ -2,11 +2,69 @@ name: Deploy CDK Stack
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
+
+env:
+  AWS_REGION: eu-central-1
 
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image-uri: ${{ steps.build-image.outputs.image }}
+      image-sha: ${{ steps.build-image.outputs.image-sha }}
+      stage: ${{ steps.set-stage.outputs.stage }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set stage based on branch
+        id: set-stage
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "stage=PROD" >> $GITHUB_OUTPUT
+            echo "ecr_repo=reonic-lambda-prod" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            echo "stage=DEV" >> $GITHUB_OUTPUT
+            echo "ecr_repo=reonic-lambda-dev" >> $GITHUB_OUTPUT
+          else
+            echo "stage=DEV" >> $GITHUB_OUTPUT
+            echo "ecr_repo=reonic-lambda-dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ steps.set-stage.outputs.ecr_repo }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build a docker container and push it to ECR
+          cd app
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image-sha=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+          # Also tag as latest for convenience
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
   deploy:
     runs-on: ubuntu-latest
+    needs: build-and-push
 
     steps:
       - name: Checkout
@@ -17,12 +75,28 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Install dependencies
         run: |
           npm install -g aws-cdk
           npm run install:all
+          echo "${{ needs.build-and-push.outputs.image-uri }}"
+          echo "${{ needs.build-and-push.outputs.image-sha }}"
 
       - name: Build application
-        run: npm run build:app
+        run: npm run build
 
-# Add your code to deploy the App here
+      - name: Deploy CDK stack
+        run: |
+          cd cdk
+          echo "Deploying to ${{ needs.build-and-push.outputs.stage }} environment"
+          cdk deploy --all --require-approval never --context stage=${{ needs.build-and-push.outputs.stage }}
+        env:
+          IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
+          IMAGE_SHA: ${{ needs.build-and-push.outputs.image-sha }}
