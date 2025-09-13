@@ -4,9 +4,9 @@ echo "🧪 Testing Reonic Lambda with PostgreSQL"
 echo "========================================"
 
 # Check if Docker Compose is running
-if ! docker-compose ps | grep -q "reonic-lambda"; then
+if ! docker compose ps | grep -q "reonic-lambda"; then
     echo "❌ Docker Compose services are not running. Starting them..."
-    docker-compose up -d
+    docker compose up -d
     echo "⏳ Waiting for services to be ready..."
     sleep 10
 fi
@@ -44,4 +44,4 @@ echo ""
 echo "🔄 To test direct HTTP:"
 echo "   curl -X POST http://localhost:9000/"
 echo ""
-echo "🛑 To stop services, run: docker-compose down" 
+echo "🛑 To stop services, run: docker compose down" 

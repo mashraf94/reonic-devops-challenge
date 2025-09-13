@@ -16,11 +16,11 @@
     "bootstrap": "cd cdk && npm run bootstrap",
     "install:all": "npm install && cd app && npm install && cd ../cdk && npm install",
     "test:local": "cd app && npm run build && docker build -t local-lambda . && docker run -p 9000:8080 local-lambda",
-    "test:compose": "docker-compose up --build",
-    "test:compose:down": "docker-compose down",
+    "test:compose": "docker compose up --build",
+    "test:compose:down": "docker compose down",
     "test:lambda": "curl -X POST http://localhost:9000/",
     "test:lambda:runtime": "curl -XPOST \"http://localhost:9000/2015-03-31/functions/function/invocations\" -H \"Content-Type: application/json\" -d '{}'",
-    "test:lambda:clean": "docker-compose down -v && docker-compose up --build"
+    "test:lambda:clean": "docker compose down -v && docker compose up --build"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.135.0",

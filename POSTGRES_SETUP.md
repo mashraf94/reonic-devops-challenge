@@ -50,7 +50,7 @@ npm run test:lambda:runtime  # Lambda runtime interface testing
 ### Manual Testing
 ```bash
 # Start services
-docker-compose up -d
+docker compose up -d
 
 # Wait for services to be ready, then test (choose one):
 
@@ -63,10 +63,10 @@ curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" \
      -d '{}'
 
 # Check logs
-docker-compose logs lambda
+docker compose logs lambda
 
 # Stop services
-docker-compose down
+docker compose down
 ```
 
 ## 📊 Database Schema
@@ -117,7 +117,7 @@ Each time the Lambda function is invoked, it:
 - For AWS Secrets Manager, ensure Lambda has `secretsmanager:GetSecretValue` permission
 
 ### Local Development
-- Use `docker-compose logs` to check service logs
+- Use `docker compose logs` to check service logs
 - Ensure ports 5432 (PostgreSQL) and 9000 (Lambda) are available
 - Check that the Lambda container can reach the PostgreSQL container
 
