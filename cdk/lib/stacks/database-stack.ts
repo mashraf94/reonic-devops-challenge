@@ -30,11 +30,22 @@ export class DatabaseStack extends Stack {
       },
     });
 
+    // Create custom parameter group to disable SSL on postgres 15+
+    const parameterGroup = new rds.ParameterGroup(this, 'PostgresParams', {
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_15,
+      }),
+      parameters: {
+        'rds.force_ssl': '0',
+      },
+    });
+
     // Create RDS instance
     this.rds = new rds.DatabaseInstance(this, 'RDSDatabase', {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_15,
       }),
+      parameterGroup: parameterGroup,
       instanceType: ec2.InstanceType.of(
         props.config.database.instanceClass.split('.')[0] as ec2.InstanceClass,
         props.config.database.instanceClass.split('.')[1] as ec2.InstanceSize
