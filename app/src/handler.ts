@@ -40,7 +40,7 @@ async function getDatabaseConfig(): Promise<DatabaseConfig> {
     return {
       host: secret.host || secret.DB_HOST,
       port: parseInt(secret.port || secret.DB_PORT || '5432'),
-      database: secret.database || secret.DB_NAME || 'postgres',
+      database: secret.dbname || secret.DB_NAME || 'postgres',
       user: secret.username || secret.user || secret.DB_USER,
       password: secret.password || secret.DB_PASSWORD,
     };
