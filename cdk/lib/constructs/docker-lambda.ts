@@ -98,7 +98,7 @@ export class DockerLambda extends Construct {
       this.fn.currentVersion.applyRemovalPolicy(RemovalPolicy.RETAIN);
       new codedeploy.LambdaDeploymentGroup(this, 'DG', {
         alias: this.alias,
-        deploymentConfig: codedeploy.LambdaDeploymentConfig.CANARY_10PERCENT_10MINUTES,
+        deploymentConfig: codedeploy.LambdaDeploymentConfig.CANARY_10PERCENT_5MINUTES,
         alarms: [...lambdaAlerts, ...apiAlerts]
       });
     }
