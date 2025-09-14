@@ -4,16 +4,15 @@ on:
   push:
     branches: [main, dev]
 
-env:
-  AWS_REGION: eu-central-1
-
 jobs:
-  build-and-push:
+  demo-app-bap:
     runs-on: ubuntu-latest
     outputs:
-      image-uri: ${{ steps.build-image.outputs.image }}
-      image-sha: ${{ steps.build-image.outputs.image-sha }}
+      demo-image-uri: ${{ steps.build-image.outputs.image }}
+      demo-image-sha: ${{ steps.build-image.outputs.image-sha }}
+      demo-ecr-repo: ${{ steps.set-stage.outputs.ecr_repo }}
       stage: ${{ steps.set-stage.outputs.stage }}
+      aws-region: ${{ steps.set-stage.outputs.aws_region }}
 
     steps:
       - name: Checkout
@@ -23,14 +22,13 @@ jobs:
         id: set-stage
         run: |
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "stage=PROD" >> $GITHUB_OUTPUT
-            echo "ecr_repo=reonic-lambda-prod" >> $GITHUB_OUTPUT
+            echo "stage=prod" >> $GITHUB_OUTPUT
+            echo "ecr_repo=reonic-demo-prod" >> $GITHUB_OUTPUT
+            echo "aws_region=eu-central-1" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            echo "stage=DEV" >> $GITHUB_OUTPUT
-            echo "ecr_repo=reonic-lambda-dev" >> $GITHUB_OUTPUT
-          else
-            echo "stage=DEV" >> $GITHUB_OUTPUT
-            echo "ecr_repo=reonic-lambda-dev" >> $GITHUB_OUTPUT
+            echo "stage=dev" >> $GITHUB_OUTPUT
+            echo "ecr_repo=reonic-demo-dev" >> $GITHUB_OUTPUT
+            echo "aws_region=us-east-1" >> $GITHUB_OUTPUT
           fi
 
       - name: Configure AWS credentials
@@ -38,11 +36,28 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ steps.set-stage.outputs.aws_region }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR repository exists
+        env:
+          ECR_REPOSITORY: ${{ steps.set-stage.outputs.ecr_repo }}
+          AWS_REGION: ${{ steps.set-stage.outputs.aws_region }}
+        run: |
+          # Check if ECR repository exists, create if it doesn't
+          if ! aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION >/dev/null 2>&1; then
+            echo "ECR repository $ECR_REPOSITORY does not exist. Creating..."
+            aws ecr create-repository \
+              --repository-name $ECR_REPOSITORY \
+              --region $AWS_REGION \
+              --image-scanning-configuration scanOnPush=true
+            echo "ECR repository $ECR_REPOSITORY created successfully"
+          else
+            echo "ECR repository $ECR_REPOSITORY already exists"
+          fi
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
@@ -64,7 +79,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: demo-app-bap
 
     steps:
       - name: Checkout
@@ -80,14 +95,14 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ needs.demo-app-bap.outputs.aws-region }}
 
       - name: Install dependencies
         run: |
           npm install -g aws-cdk
           npm run install:all
-          echo "${{ needs.build-and-push.outputs.image-uri }}"
-          echo "${{ needs.build-and-push.outputs.image-sha }}"
+          echo "${{ needs.demo-app-bap.outputs.image-uri }}"
+          echo "${{ needs.demo-app-bap.outputs.image-sha }}"
 
       - name: Build application
         run: npm run build
@@ -95,8 +110,9 @@ jobs:
       - name: Deploy CDK stack
         run: |
           cd cdk
-          echo "Deploying to ${{ needs.build-and-push.outputs.stage }} environment"
-          cdk deploy --all --require-approval never --context stage=${{ needs.build-and-push.outputs.stage }}
+          echo "Deploying to ${{ needs.demo-app-bap.outputs.stage }} environment in region ${{ needs.demo-app-bap.outputs.aws-region }}"
+          cdk bootstrap --region ${{ needs.demo-app-bap.outputs.aws-region }}
+          cdk deploy "${{ needs.demo-app-bap.outputs.stage }}/**" --require-approval never
         env:
-          IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
-          IMAGE_SHA: ${{ needs.build-and-push.outputs.image-sha }}
+          DEMO_IMAGE_SHA: ${{ needs.demo-app-bap.outputs.demo-image-sha }}
+          DEMO_ECR_REPO: ${{ needs.demo-app-bap.outputs.demo-ecr-repo }}

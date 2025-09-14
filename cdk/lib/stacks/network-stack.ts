@@ -21,6 +21,7 @@ export class NetworkStack extends Stack {
         // Create VPC with proper subnet configuration
         this.vpc = new ec2.Vpc(this, 'VPC', {
             ipAddresses: ec2.IpAddresses.cidr(props.config.vpc.cidr),
+            natGateways: props.config.vpc.natGateways,
             subnetConfiguration: [
                 {
                     name: 'public',
@@ -61,35 +62,6 @@ export class NetworkStack extends Stack {
         this.rdsSG = new ec2.SecurityGroup(this, 'RDS', {
             vpc: this.vpc,
             allowAllOutbound: false,
-        });
-
-        // Security Group Rules
-        // INGRESS
-        // LAMBDA --> RDS
-        this.rdsSG.addIngressRule(
-            this.lambdaSG,
-            ec2.Port.tcp(props.config.database.port),
-        );
-
-        // Network Stack Outputs
-        new CfnOutput(this, 'ReonicVpcId', {
-            value: this.vpc.vpcId,
-            exportName: 'reonic-vpc-id',
-        });
-
-        new CfnOutput(this, 'RenoicVpcCidr', {
-            value: this.vpc.vpcCidrBlock,
-            exportName: 'vpc-cidr',
-        });
-
-        new CfnOutput(this, 'LambdaSubnetIds', {
-            value: this.lambdaSubnets.subnetIds.join(','),
-            exportName: 'lambda-subnet-ids',
-        });
-
-        new CfnOutput(this, 'RDSSubnetIds', {
-            value: this.rdsSubnets.subnetIds.join(','),
-            exportName: 'rds-subnet-ids',
         });
     }
 }
