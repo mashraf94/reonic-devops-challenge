@@ -38,7 +38,7 @@ export const getEnvironmentConfig = (stage: string): EnvironmentConfig => {
   const configs: Record<string, EnvironmentConfig> = {
     dev: {
       stage: 'dev',
-      region: 'us-east-1',
+      region: process.env.AWS_REGION ?? 'us-east-1',
       account: process.env.CDK_DEFAULT_ACCOUNT,
       vpc: {
         cidr: '10.0.0.0/16',
@@ -62,7 +62,7 @@ export const getEnvironmentConfig = (stage: string): EnvironmentConfig => {
     },
     prod: {
       stage: 'prod',
-      region: 'eu-central-1',
+      region: process.env.AWS_REGION ?? 'eu-central-1',
       account: process.env.CDK_DEFAULT_ACCOUNT,
       vpc: {
         cidr: '10.0.0.0/16',

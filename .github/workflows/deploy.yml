@@ -24,11 +24,11 @@ jobs:
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             echo "stage=prod" >> $GITHUB_OUTPUT
             echo "ecr_repo=reonic-demo-prod" >> $GITHUB_OUTPUT
-            echo "aws_region=eu-central-1" >> $GITHUB_OUTPUT
+            echo "aws_region=${{ vars.PROD_AWS_REGION }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
             echo "stage=dev" >> $GITHUB_OUTPUT
             echo "ecr_repo=reonic-demo-dev" >> $GITHUB_OUTPUT
-            echo "aws_region=us-east-1" >> $GITHUB_OUTPUT
+            echo "aws_region=${{ vars.DEV_AWS_REGION }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Configure AWS credentials
@@ -114,5 +114,6 @@ jobs:
           cdk bootstrap --region ${{ needs.demo-app-bap.outputs.aws-region }}
           cdk deploy "${{ needs.demo-app-bap.outputs.stage }}/**" --require-approval never
         env:
+          AWS_REGION: ${{ needs.demo-app-bap.outputs.aws-region }}
           DEMO_IMAGE_SHA: ${{ needs.demo-app-bap.outputs.demo-image-sha }}
           DEMO_ECR_REPO: ${{ needs.demo-app-bap.outputs.demo-ecr-repo }}

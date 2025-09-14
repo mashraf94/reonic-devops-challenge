@@ -6,7 +6,7 @@ import { getEnvironmentConfig } from '../lib/config/environment-config';
 
 const app = new cdk.App();
 
-// Create Dev Stage (us-east-1)
+// Create DEV Stage
 const devConfig = getEnvironmentConfig('dev');
 new ReonicStage(app, 'dev', {
   config: devConfig,
@@ -16,7 +16,7 @@ new ReonicStage(app, 'dev', {
   },
 });
 
-// Create Prod Stage (eu-central-1)
+// Create PROD Stage
 const prodConfig = getEnvironmentConfig('prod');
 new ReonicStage(app, 'prod', {
   config: prodConfig,
