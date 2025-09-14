@@ -21,7 +21,7 @@ export class NetworkStack extends Stack {
         // Create VPC with proper subnet configuration
         this.vpc = new ec2.Vpc(this, 'VPC', {
             ipAddresses: ec2.IpAddresses.cidr(props.config.vpc.cidr),
-            natGateways: props.config.vpc.natGateways,
+            natGateways: props.config.vpc.enableInternet ? props.config.vpc.natGateways : 0,
             subnetConfiguration: [
                 {
                     name: 'public',

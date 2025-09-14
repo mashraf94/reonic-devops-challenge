@@ -10,6 +10,7 @@ export interface EnvironmentConfig {
   readonly vpc: {
     readonly cidr: string;
     readonly natGateways: number;
+    readonly enableInternet: boolean;
   };
 
   // Database Configuration
@@ -41,8 +42,9 @@ export const getEnvironmentConfig = (stage: string): EnvironmentConfig => {
       region: process.env.AWS_REGION ?? 'us-east-1',
       account: process.env.CDK_DEFAULT_ACCOUNT,
       vpc: {
+        enableInternet: false,
         cidr: '10.0.0.0/16',
-        natGateways: 0,
+        natGateways: 1,
       },
       database: {
         port: 5432,
@@ -65,8 +67,9 @@ export const getEnvironmentConfig = (stage: string): EnvironmentConfig => {
       region: process.env.AWS_REGION ?? 'eu-central-1',
       account: process.env.CDK_DEFAULT_ACCOUNT,
       vpc: {
+        enableInternet: false,
         cidr: '10.0.0.0/16',
-        natGateways: 0,
+        natGateways: 3,
       },
       database: {
         port: 5445,
