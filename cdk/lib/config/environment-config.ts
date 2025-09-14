@@ -42,7 +42,7 @@ export const getEnvironmentConfig = (stage: string): EnvironmentConfig => {
       account: process.env.CDK_DEFAULT_ACCOUNT,
       vpc: {
         cidr: '10.0.0.0/16',
-        natGateways: 1,
+        natGateways: 0,
       },
       database: {
         port: 5432,
@@ -66,7 +66,7 @@ export const getEnvironmentConfig = (stage: string): EnvironmentConfig => {
       account: process.env.CDK_DEFAULT_ACCOUNT,
       vpc: {
         cidr: '10.0.0.0/16',
-        natGateways: 3,
+        natGateways: 0,
       },
       database: {
         port: 5445,

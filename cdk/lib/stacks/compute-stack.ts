@@ -1,4 +1,4 @@
-import { Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
+import { Stack, StackProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
@@ -18,7 +18,7 @@ export class ComputeStack extends Stack {
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
 
-    const dockerLambda = new DockerLambda(this, 'demo', {
+    new DockerLambda(this, 'demo', {
       config: props.config,
       fnName: 'reonic_demo',
       database: props.dbs.demoDB,
@@ -27,19 +27,6 @@ export class ComputeStack extends Stack {
       vpc: props.vpc,
       lambdaSubnets: props.lambdaSubnets,
       lambdaSGs: props.lambdaSGs,
-    });
-
-    // Stack Outputs
-    new CfnOutput(this, 'ApiEndpoint', {
-      value: dockerLambda.api.url,
-      description: 'API Gateway endpoint URL',
-      exportName: `${props.config.stage}-api-endpoint`,
-    });
-
-    new CfnOutput(this, 'LambdaFunctionName', {
-      value: dockerLambda.fn.functionName,
-      description: 'Lambda function name',
-      exportName: `${props.config.stage}-lambda-name`,
     });
   }
 }
