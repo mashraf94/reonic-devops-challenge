@@ -1,10 +1,9 @@
 import { Construct } from 'constructs';
-import { Duration, Stack } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
-import * as secrets from 'aws-cdk-lib/aws-secretsmanager';
 import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
 import { EnvironmentConfig } from '../config/environment-config';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
@@ -68,14 +67,6 @@ export class DockerLambda extends Construct {
       version: this.fn.currentVersion,
     });
 
-    // Canary Deployments for smart rollouts
-    if (props.canaryDeploy) {
-      new codedeploy.LambdaDeploymentGroup(this, 'DG', {
-        alias: this.alias,
-        deploymentConfig: codedeploy.LambdaDeploymentConfig.CANARY_10PERCENT_5MINUTES,
-      });
-    }
-
     // API Gateway
     this.api = new apigw.LambdaRestApi(this, 'Api', {
       handler: this.alias,
@@ -99,7 +90,17 @@ export class DockerLambda extends Construct {
       alertEmail: props.alertEmail,
     });
 
-    monitoring.addLambdaMonitoring(this.fn);
-    monitoring.addApiGatewayMonitoring(this.api);
+    const lambdaAlerts = monitoring.addLambdaMonitoring(this.fn);
+    const apiAlerts = monitoring.addApiGatewayMonitoring(this.api);
+
+    // Canary Deployments for smart rollouts
+    if (props.canaryDeploy ?? props.config.stage == 'prod') {
+      this.fn.currentVersion.applyRemovalPolicy(RemovalPolicy.RETAIN);
+      new codedeploy.LambdaDeploymentGroup(this, 'DG', {
+        alias: this.alias,
+        deploymentConfig: codedeploy.LambdaDeploymentConfig.CANARY_10PERCENT_10MINUTES,
+        alarms: [...lambdaAlerts, ...apiAlerts]
+      });
+    }
   }
 }

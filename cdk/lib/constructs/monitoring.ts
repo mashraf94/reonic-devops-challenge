@@ -39,7 +39,7 @@ export class ResourceMonitoring extends Construct {
   }
 
   // Default Lambda Monitoring
-  public addLambdaMonitoring(lambdaFunction: lambda.IFunction): void {
+  public addLambdaMonitoring(lambdaFunction: lambda.IFunction): cloudwatch.Alarm[] {
     const timeoutMs = this.lambdaTimeout * 0.8 * 1000;
 
     // More than 3 errors/min for 5 minutes
@@ -66,9 +66,11 @@ export class ResourceMonitoring extends Construct {
       errorAlarm.addAlarmAction(new actions.SnsAction(this.alertTopic));
       durationAlarm.addAlarmAction(new actions.SnsAction(this.alertTopic));
     }
+
+    return [errorAlarm, durationAlarm];
   }
 
-  public addApiGatewayMonitoring(apiGateway: apigw.RestApi): void {
+  public addApiGatewayMonitoring(apiGateway: apigw.RestApi): cloudwatch.Alarm[] {
     // More than 3 5XX Errors/minute for 5 minutes or more
     const serverErrorAlarm = new cloudwatch.Alarm(this, `${apiGateway.node.id}ServerErrorAlarm`, {
       metric: new cloudwatch.Metric({
@@ -119,9 +121,11 @@ export class ResourceMonitoring extends Construct {
       latencyAlarm.addAlarmAction(new actions.SnsAction(this.alertTopic));
       serverWarnAlarm.addAlarmAction(new actions.SnsAction(this.alertTopic));
     }
+
+    return [serverErrorAlarm, latencyAlarm, serverWarnAlarm];
   }
 
-  public addRdsMonitoring(rdsInstance: PostgresDb): void {
+  public addRdsMonitoring(rdsInstance: PostgresDb): cloudwatch.Alarm[] {
     // CPU is greater than 80% for 5 minutes
     const cpuAlarm = new cloudwatch.Alarm(this, `${rdsInstance.node.id}CpuAlarm`, {
       metric: rdsInstance.database.metricCPUUtilization({
@@ -147,5 +151,7 @@ export class ResourceMonitoring extends Construct {
       cpuAlarm.addAlarmAction(new actions.SnsAction(this.alertTopic));
       freeStorageAlarm.addAlarmAction(new actions.SnsAction(this.alertTopic));
     }
+
+    return [cpuAlarm, freeStorageAlarm];
   }
 }
