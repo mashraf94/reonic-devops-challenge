@@ -2,6 +2,8 @@
 
 ## 🏗️ How I approached the task
 
+### 🚀 The Start: Initial Architecture Design
+
 **First**, I designed a simple but secure architecture:
 
 - **VPC network** with proper subnet segmentation
@@ -30,40 +32,44 @@
 2. **Deploy Infrastructure & Lambda Function:**
    - Compiles the CDK stacks and deploys infrastructure to AWS
    - Handles environment-specific deployments based on branch
+---
 
-## ⚡ The Challenge: Scaling and Multi-Environment Support
+### ⚡ The Challenge: Scaling and Multi-Environment Support
 
 After finishing the initial solution, I realized it had limitations:
 
 - **Scalability Issue**: The CDK repo could only manage a single Lambda function and one database
 - **Multi-environment Complexity**: Managing multiple environments created messy resource naming and configuration
+---
 
-## 🔧 The Solution: Refactoring for Scale
+### 🔧 The Solution: Refactoring for Scale
 
 I restructured the entire project using a **stage → stack → construct** pattern:
 
 ![CDK Structure](./cdk.png)
 
-### Reusable Constructs
+#### Reusable Constructs
 - **Docker Lambda**: Opinionated construct with API Gateway integration and sensible defaults
 - **Postgres Database**: Environment-specific configurations with proper subnet groups and security
 - **Monitoring**: Comprehensive CloudWatch alarms for Lambda, API Gateway, and RDS with SNS notifications
 
-### Scalable Stack Architecture
+#### Scalable Stack Architecture
 - **Compute Stack**: Can now create multiple lambda functions with just a few lines of code
 - **Database Stack**: Easy to spin up multiple postgres databases with consistent configurations
 - **Network Stack**: Centralized VPC, subnet, and security group management
 
-### Environment Management
+#### Environment Management
 - **CDK Stages**: Used AWS CDK Stage construct to create completely isolated dev and prod environments
 - **Configuration-driven**: Simple config file to differentiate between dev and prod environments
 - **Branch-based deployment**: Dev branch → dev environment, main branch → prod environment
 - **Complete separation**: Each stage deploys its own set of stacks, environments are fully isolated
 
-### Monitoring and Deployment Strategy
+#### Monitoring and Deployment Strategy
 - **Comprehensive monitoring**: CloudWatch alarms for Lambda errors/duration, API Gateway 4XX/5XX errors/latency, and RDS CPU/storage metrics
 - **Alert notifications**: SNS email subscriptions for all critical system health alerts
 - **Safe production deployments**: CodeDeploy canary deployments roll out changes to 10% of traffic over 5 minutes with automatic rollback on alarm triggers
+
+---
 
 ## 📝 Assumptions and Trade-offs
 
@@ -81,6 +87,7 @@ I restructured the entire project using a **stage → stack → construct** patt
   - Database connections are internal VPC traffic
   - Secrets Manager access goes through VPC Endpoint
   - If a Lambda function requires internet access, NAT Gateways can be enabled at the config level with `config.vpc.enableInternet`
+---
 
 ### Trade-offs
 
@@ -104,9 +111,42 @@ I restructured the entire project using a **stage → stack → construct** patt
   - Each lambda function gets its own API Gateway with a single proxy route
   - Simpler to manage permissions, routing and monitoring per function
 
-## 🚀 How to use the solution and test it
+---
 
-### Prerequisites
+## 🧪 How to test the solution
+
+**Live Demo Endpoints:**
+- **Dev Environment**: https://sickak8gy8.execute-api.us-east-1.amazonaws.com/dev/
+- **Prod Environment**: https://qfal34utr0.execute-api.eu-central-1.amazonaws.com/prod/
+
+**Test Commands:**
+```bash
+# Test dev environment
+curl https://sickak8gy8.execute-api.us-east-1.amazonaws.com/dev/
+
+# Test prod environment
+curl https://qfal34utr0.execute-api.eu-central-1.amazonaws.com/prod/
+```
+
+**Expected Response:**
+```json
+{
+  "message": "Successfully inserted record and retrieved count",
+  "insertedId": 1,
+  "totalRecords": 1,
+  "timestamp": "2025-01-01T12:00:00.000Z"
+}
+```
+
+**Verification:**
+- Run the curl command multiple times and watch the `totalRecords` count increase
+- This confirms Lambda is connecting to RDS and inserting data successfully
+- Both environments demonstrate the multi-region deployment (dev: us-east-1, prod: eu-central-1)
+---
+
+## ⚙️ How to deploy your own instance
+
+### A. Prerequisites
 
 1. **Repository Setup:**
    - Fork the repo to your GitHub account
@@ -139,8 +179,9 @@ I restructured the entire project using a **stage → stack → construct** patt
        alertEmail: "your-email@example.com",
      }
      ```
+---
 
-### Local Infrastructure Testing
+### B. Local Infrastructure Testing
 
 1. **Install Dependencies:**
    ```bash
@@ -161,96 +202,62 @@ I restructured the entire project using a **stage → stack → construct** patt
    # Deploy locally for testing (optional)
    cdk deploy "dev/**"
    ```
+---
 
-### GitHub Actions Deployment
+### C. GitHub Actions Deployment
 
-1. **Enable GitHub Actions** on your forked repository
+1. **Enable GitHub Actions** on your repository
 
-2. **Configure Repository Secrets:**
+2. **Create a dedicated IAM user for GitHub Actions:**
+   - **Important:** CDK bootstrap prerequisite should be completed first by a developer/admin with **`PowerUserAccess`** or **`AdministratorAccess`** before setting up GitHub Actions.
 
-   **AWS permissions needed for the Access Keys:**
+   - **AWS Policies Required:**
+     - **AWS managed policy for ECR operations: `AmazonEC2ContainerRegistryPowerUser`** 
 
-   **Important:** CDK bootstrap prerequisite should be completed first by a developer/admin with **`PowerUserAccess`** or **`AdministratorAccess`** before setting up GitHub Actions.
+     - **Custom policy for CDK role assumption:**
+       ```json
+       {
+         "Version": "2012-10-17",
+         "Statement": [
+           {
+             "Effect": "Allow",
+             "Action": ["sts:AssumeRole"],
+             "Resource": ["arn:aws:iam::*:role/cdk-*"]
+           }
+         ]
+       }
+       ```
 
-   **Create a dedicated IAM user for GitHub Actions** and attach these policies:
-   - **Custom policy for CDK role assumption:**
-     ```json
-     {
-       "Version": "2012-10-17",
-       "Statement": [
-         {
-           "Effect": "Allow",
-           "Action": ["sts:AssumeRole"],
-           "Resource": ["arn:aws:iam::*:role/cdk-*"]
-         }
-       ]
-     }
-     ```
-   - **`AmazonEC2ContainerRegistryPowerUser`** (AWS managed policy for ECR operations)
-
-   **Note:** This covers CDK deployment via bootstrap roles + all necessary ECR operations for Docker image building.
-
+3. **Configure Required Secrets/Variables:**
    **Repository Secrets:**
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
 
-   **Required Variables:**
+   **Repository Variables:**
    - `DEV_AWS_REGION` (ex: us-east-1)
    - `PROD_AWS_REGION` (ex: eu-central-1)
 
-### Deployment Process
+4. **Push to trigger GitHub Actions Workflow**
+   - Push to `dev` branch → triggers development deployment
+   - Push to `main` branch → triggers production deployment
+---
 
-1. Make your changes to application or infrastructure code
-2. Push to `dev` branch → deploys to development environment
-3. GitHub Actions automatically builds and deploys your app and infrastructure
-4. Once satisfied with dev, merge to `main` branch → triggers production deployment
-
-### Testing the Deployed Solution
-
-1. **Get API Endpoint**:
-   - Go to AWS Console → CloudFormation → Your stack → Outputs tab
-   - Copy the API Gateway endpoint URL (something like `https://abc123.execute-api.us-east-1.amazonaws.com/dev/`)
-
-2. **Test the Lambda Function**:
-   ```bash
-   # Test the API endpoint
-   curl https://your-api-endpoint.execute-api.region.amazonaws.com/dev/
-
-   # Expected response (JSON):
-   {
-     "message": "Successfully inserted record and retrieved count",
-     "insertedId": 1,
-     "totalRecords": 1,
-     "timestamp": "2025-01-01T12:00:00.000Z"
-   }
-   ```
-
-3. **Verify Database Functionality**:
-   - Run the curl command multiple times
-   - Watch the `totalRecords` count increase with each request
-   - This confirms Lambda is successfully connecting to RDS and inserting data
-
-4. **Monitor System Health**:
-   - **CloudWatch Logs**: Go to CloudWatch → Log Groups → `/aws/lambda/your-function-name` to see execution logs
-   - **CloudWatch Metrics**: Check Lambda, API Gateway, and RDS metrics in CloudWatch
-   - **Email Alerts**: You should receive SNS email notifications if any alarms trigger
-   - **RDS Activity**: Verify database connections in RDS console performance insights
 
 ## 💡 What I would improve with more time
 
-### Security Enhancements
+#### Security Enhancements
 - Setup IAM Roles for CDK Deploy with OIDC integration instead of GitHub Actions secrets
 - Enable SSL connections between Lambda and RDS
 - Implement RDS Proxy with IAM Authentication for better connection pooling and security
 - Create dedicated database user with limited permissions instead of admin credentials
 
-### Operational Improvements
+#### Operational Improvements
 - Add integration tests in the CI/CD pipeline to test deployed API endpoints
 - Setup centralized logging and structured log aggregation for better debugging
 - Implement automated database schema migrations
 
-### Architecture Flexibility
+#### Architecture Flexibility
 - Make constructs more flexible to allow resource sharing when appropriate
 - Allow multiple databases to share subnet groups when inter-database connectivity is required
-- Allow multiple databases to share extensible parameter groups that are typed to database engine and instance class 
+- Allow multiple databases to share extensible parameter groups that are typed to database engine and instance class
 - Enable Lambda functions to share API Gateways with route-based configuration allowing more complex solutions
