@@ -27,7 +27,7 @@ export class DatabaseStack extends Stack {
       dbSubnets: props.dbSubnets,
       dbSGs: props.dbSGs,
       dbName: 'reonic_demo',
-      port: 5439
+      port: 5439,
     });
 
     this.dbs = { demoDB };

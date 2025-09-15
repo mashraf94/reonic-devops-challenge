@@ -18,6 +18,8 @@ export interface PostgresDbProps {
   allocatedStorageGb?: number;
   instanceClass?: ec2.InstanceType;
   alertEmail?: string;
+  forceSSL?: boolean;
+  dbParams?: { [key: string]: string; };
 }
 
 export class PostgresDb extends Construct {
@@ -39,7 +41,8 @@ export class PostgresDb extends Construct {
         version: rds.PostgresEngineVersion.VER_15,
       }),
       parameters: {
-        'rds.force_ssl': '0',
+        'rds.force_ssl': props.forceSSL ? '1' : '0',
+        ...props.dbParams
       },
     });
 
