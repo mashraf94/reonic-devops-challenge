@@ -7,7 +7,7 @@
 - **VPC network** with proper subnet segmentation
 - **Private subnets** for Lambda functions
 - **Isolated subnets** for database instances
-- **Private Link endpoint** to Secrets Manager for secure internal access
+- **VPC Endpoint** to Secrets Manager for secure internal access
 - **Lambda functions** in private subnets with restricted security groups
 - **RDS PostgreSQL** in isolated subnets, only accessible from Lambda
 - **Database credentials** managed through Secrets Manager
@@ -16,7 +16,7 @@
 ![Infrastructure Architecture](./infra.png)
 
 **Second**, I translated this architecture to CDK by creating several stacks:
-- **Networking Stack**: VPCs, subnets, security groups, and Private Link endpoints
+- **Networking Stack**: VPCs, subnets, security groups, and VPC endpoints
 - **Database Stack**: RDS instances, database subnet groups, and parameter groups
 - **Compute Stack**: Lambda functions and API Gateway
 
@@ -75,61 +75,128 @@ I restructured the entire project using a **stage → stack → construct** patt
 
 - **Database Secret Format**: Had to assume the database secret parser in the original code had a misspelling
   - The code referenced `secret.database` but RDS auto-generated secrets use `secret.dbname`
-  - Updated the handler code to support both formats for flexibility
+  - Updated the handler code to support RDS auto-generated format `secret.dbname` for flexibility
 
-- **No Internet Connectivity Required**: Determined that Lambda functions don't need internet access, so I removed NAT Gateways to reduce costs
+- **No Internet Connectivity Required**: Determined that Lambda functions in this solution don't need internet access, so I removed NAT Gateways to reduce costs
   - Database connections are internal VPC traffic
-  - Secrets Manager access goes through VPC Endpoint (PrivateLink)
-  - In case a Lambda Function, requires internet access, NAT Gateways is set at the config level to be enabled
-
-- **Database Isolation**: Assumed every database instance would be isolated with no inter-database connections
-  - Each database gets its own subnet group and parameter group for complete isolation
-  - Simpler security model with clear boundaries
-
-- **Lambda-to-API Gateway Mapping**: Assumed each Lambda function would have its own dedicated API Gateway
-  - One-to-one mapping provides clear ownership and isolated routing
-  - Simpler to manage permissions and monitoring per function
+  - Secrets Manager access goes through VPC Endpoint
+  - If a Lambda function requires internet access, NAT Gateways can be enabled at the config level with `config.vpc.enableInternet`
 
 ### Trade-offs
 
 - **SSL Connection**: Turned off SSL for postgres v15 instead of setting up SSL connection between Lambda and RDS
   - This avoided heavy changes to database connection setup in lambda function in case it was out of scope
   - Recognized this as a security trade-off for development speed
-- **Authentication Method**: Used GitHub Actions secrets with Access Keys as instructed by the task
+
+- **Authentication Method**: Used GitHub Actions secrets with Access Keys
   - Instead of setting up more secure OIDC connection between GitHub and AWS
   - Simpler approach but less secure than best practices would suggest
+
 - **Connection Management**: Avoided using RDS Proxy for better connection pooling and management with IAM Authentication
   - Would require significant code changes and couldn't use the existing secret string with DB connection info
   - Decided to keep the simpler direct connection approach for this implementation
 
+- **Database Isolation**: Assumed every database instance would be isolated with no inter-database connections
+  - Each database gets its own subnet group and parameter group for complete isolation
+  - Simpler security model with clear boundaries
+
+- **Lambda-to-API Gateway Mapping**: Assumed each Lambda function would require its own dedicated API Gateway
+  - Each lambda function gets its own API Gateway with a single proxy route
+  - Simpler to manage permissions, routing and monitoring per function
+
 ## 🚀 How to use the solution and test it
 
-### Setup Requirements
+### Prerequisites
 
 1. **Repository Setup:**
    - Fork the repo to your GitHub account
-   - Create a branch called 'dev' from main
-   - Enable GitHub Actions on your forked repo
+   - Clone your fork locally
+   - Create a branch called `dev` from main
 
-2. **GitHub Repository Configuration:**
+2. **AWS CLI Setup:**
+   ```bash
+   # Install and configure AWS CLI
+   aws configure
+   # Enter your Access Key ID, Secret Key, and default region
+   ```
 
-   **Required Secrets** (AWS permissions needed: CloudFormation, VPCs, EC2, Lambda, API Gateway, ECR, RDS, Secret Manager, SNS, CodeDeploy):
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
+3. **Bootstrap CDK (Required - Admin Access Needed):**
+   ```bash
+   cd cdk
+   # Bootstrap dev region
+   AWS_REGION=us-east-1 cdk bootstrap
 
-   **Required Variables:**
-   - `DEV_AWS_REGION` (e.g., us-east-1)
-   - `PROD_AWS_REGION` (e.g., eu-central-1)
+   # Bootstrap prod region
+   AWS_REGION=eu-central-1 cdk bootstrap
+   ```
+   **Note:** This is a **one-time setup** that creates CDK toolkit infrastructure (S3 buckets, IAM roles) in each region. Must be done by someone with **Admin** or **PowerUser** access before any CDK deployments.
 
-3. **Environment Configuration:**
+4. **Environment Configuration:**
    - Edit `config/environment-config.ts` with your preferences for dev and prod
-   - **Important**: Update the `alertEmail` field with your email address for monitoring notifications:
+   - **Important**: Update the `alertEmail` field with your email address:
      ```typescript
      monitoring: {
        alertEmail: "your-email@example.com",
      }
      ```
-   - Adjust instance classes, storage sizes, and other settings as needed
+
+### Local Infrastructure Testing
+
+1. **Install Dependencies:**
+   ```bash
+   npm run install:all
+   npm run build
+   ```
+
+2. **Test CDK Infrastructure:**
+   ```bash
+   # Synthesize CloudFormation templates to check for errors
+   cdk synth "dev/**"    # Test dev stage
+   cdk synth "prod/**"   # Test prod stage
+
+   # Check what changes would be applied (dry run)
+   cdk diff "dev/**"     # Compare dev against deployed
+   cdk diff "prod/**"    # Compare prod against deployed
+
+   # Deploy locally for testing (optional)
+   cdk deploy "dev/**"
+   ```
+
+### GitHub Actions Deployment
+
+1. **Enable GitHub Actions** on your forked repository
+
+2. **Configure Repository Secrets:**
+
+   **AWS permissions needed for the Access Keys:**
+
+   **Important:** CDK bootstrap prerequisite should be completed first by a developer/admin with **`PowerUserAccess`** or **`AdministratorAccess`** before setting up GitHub Actions.
+
+   **Create a dedicated IAM user for GitHub Actions** and attach these policies:
+   - **Custom policy for CDK role assumption:**
+     ```json
+     {
+       "Version": "2012-10-17",
+       "Statement": [
+         {
+           "Effect": "Allow",
+           "Action": ["sts:AssumeRole"],
+           "Resource": ["arn:aws:iam::*:role/cdk-*"]
+         }
+       ]
+     }
+     ```
+   - **`AmazonEC2ContainerRegistryPowerUser`** (AWS managed policy for ECR operations)
+
+   **Note:** This covers CDK deployment via bootstrap roles + all necessary ECR operations for Docker image building.
+
+   **Repository Secrets:**
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+
+   **Required Variables:**
+   - `DEV_AWS_REGION` (ex: us-east-1)
+   - `PROD_AWS_REGION` (ex: eu-central-1)
 
 ### Deployment Process
 
@@ -154,7 +221,7 @@ I restructured the entire project using a **stage → stack → construct** patt
      "message": "Successfully inserted record and retrieved count",
      "insertedId": 1,
      "totalRecords": 1,
-     "timestamp": "2024-01-01T12:00:00.000Z"
+     "timestamp": "2025-01-01T12:00:00.000Z"
    }
    ```
 
@@ -180,10 +247,10 @@ I restructured the entire project using a **stage → stack → construct** patt
 ### Operational Improvements
 - Add integration tests in the CI/CD pipeline to test deployed API endpoints
 - Setup centralized logging and structured log aggregation for better debugging
-- Add cost monitoring and budget alerts to track AWS spend across environments
 - Implement automated database schema migrations
 
 ### Architecture Flexibility
 - Make constructs more flexible to allow resource sharing when appropriate
-- Allow multiple databases to share parameter groups and subnet groups
-- Enable Lambda functions to share API Gateways with route-based configuration for better resource utilization and complex solutions
+- Allow multiple databases to share subnet groups when inter-database connectivity is required
+- Allow multiple databases to share extensible parameter groups that are typed to database engine and instance class 
+- Enable Lambda functions to share API Gateways with route-based configuration allowing more complex solutions

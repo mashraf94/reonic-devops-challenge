@@ -111,7 +111,6 @@ jobs:
         run: |
           cd cdk
           echo "Deploying to ${{ needs.demo-app-bap.outputs.stage }} environment in region ${{ needs.demo-app-bap.outputs.aws-region }}"
-          cdk bootstrap --region ${{ needs.demo-app-bap.outputs.aws-region }}
           cdk deploy "${{ needs.demo-app-bap.outputs.stage }}/**" --require-approval never
         env:
           AWS_REGION: ${{ needs.demo-app-bap.outputs.aws-region }}
